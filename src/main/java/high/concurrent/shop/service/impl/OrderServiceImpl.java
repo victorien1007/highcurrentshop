@@ -6,6 +6,7 @@ import high.concurrent.shop.entity.Order;
 import high.concurrent.shop.entity.Sequence;
 import high.concurrent.shop.error.BusinessException;
 import high.concurrent.shop.error.EmBusinessError;
+import high.concurrent.shop.mq.MqProducer;
 import high.concurrent.shop.service.ProductService;
 import high.concurrent.shop.service.OrderService;
 import high.concurrent.shop.service.UserService;
@@ -17,6 +18,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationAdapter;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -40,16 +44,21 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private OrderMapper orderMapper;
 
+    @Autowired
+    private MqProducer mqProducer;
+
     @Override
     @Transactional
     public OrderModel createOrder(Integer userId, Integer productId, Integer promoId, Integer amount) throws BusinessException {
         //1.校验下单状态,下单的商品是否存在，用户是否合法，购买数量是否正确
-        ProductModel productModel = productService.getProductById(productId);
+        //ProductModel productModel = productService.getProductById(productId);
+        ProductModel productModel = productService.getProductByIdInCache(productId);
         if(productModel == null){
             throw new BusinessException(EmBusinessError.PARAMETER_VALIDATION_ERROR,"商品信息不存在");
         }
 
-        UserModel userModel = userService.getUserById(userId);
+        //UserModel userModel = userService.getUserById(userId);
+        UserModel userModel = userService.getUserByIdInCache(userId);
         if(userModel == null){
             throw new BusinessException(EmBusinessError.PARAMETER_VALIDATION_ERROR,"用户信息不存在");
         }
@@ -94,13 +103,31 @@ public class OrderServiceImpl implements OrderService {
 
         //加上商品的销量
         productService.increaseSales(productId,amount);
+
+/*        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
+            @Override
+            public void afterCommit() {
+
+                //异步更新库存
+                boolean mqResult = productService.asyncDecreaseStock(productId,amount);
+                if(!mqResult){
+                    productService.increaseStock(productId,amount);
+                    throw new BusinessException(EmBusinessError.MQ_SEND_FAIL);
+                }
+
+            }
+        });*/
+
+
+
+
         //4.返回前端
         return orderModel;
     }
 
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    private String generateOrderNo(){
+    String generateOrderNo(){
         //订单号有16位
         StringBuilder stringBuilder = new StringBuilder();
         //前8位为时间信息，年月日

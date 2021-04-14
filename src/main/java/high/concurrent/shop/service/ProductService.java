@@ -21,8 +21,16 @@ public interface ProductService {
 
     //库存扣减
     boolean decreaseStock(Integer productId,Integer amount)throws BusinessException;
+    //库存增加
+    boolean increaseStock(Integer productId,Integer amount)throws BusinessException;
 
     //商品销量增加
     void increaseSales(Integer productId,Integer amount)throws BusinessException;
 
+
+    //item及promo model缓存模型
+    ProductModel getProductByIdInCache(Integer id);
+
+    //异步更新库存
+    boolean asyncDecreaseStock(Integer productId,Integer amount);
 }

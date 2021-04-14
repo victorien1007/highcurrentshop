@@ -2,6 +2,7 @@ package high.concurrent.shop.controller;
 
 import high.concurrent.shop.error.BusinessException;
 import high.concurrent.shop.error.EmBusinessError;
+import high.concurrent.shop.mq.MqProducer;
 import high.concurrent.shop.response.ReturnModel;
 import high.concurrent.shop.service.OrderService;
 import high.concurrent.shop.service.model.OrderModel;
@@ -21,6 +22,8 @@ import javax.servlet.http.HttpServletRequest;
 public class OrderController extends BaseController {
     @Autowired
     private OrderService orderService;
+    @Autowired
+    private MqProducer mqProducer;
 
     @Autowired
     private HttpServletRequest httpServletRequest;
@@ -40,8 +43,10 @@ public class OrderController extends BaseController {
         //获取用户的登陆信息
         UserModel userModel = (UserModel)httpServletRequest.getSession().getAttribute("LOGIN_USER");
 
-        OrderModel orderModel = orderService.createOrder(userModel.getId(),productId,promoId,amount);
-
+        //OrderModel orderModel = orderService.createOrder(userModel.getId(),productId,promoId,amount);
+        if(!mqProducer.transactionAsyncReduceStock(userModel.getId(),productId,promoId,amount)){
+            throw new BusinessException(EmBusinessError.UNKNOWN_ERROR,"下单失败");
+        }
         return ReturnModel.create(null);
     }
 }

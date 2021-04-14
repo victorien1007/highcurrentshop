@@ -3,16 +3,20 @@ package high.concurrent.shop.controller;
 import high.concurrent.shop.controller.viewobject.ProductVO;
 import high.concurrent.shop.error.BusinessException;
 import high.concurrent.shop.response.ReturnModel;
+import high.concurrent.shop.service.CacheService;
 import high.concurrent.shop.service.ProductService;
+import high.concurrent.shop.service.PromoService;
 import high.concurrent.shop.service.model.ProductModel;
 import org.joda.time.format.DateTimeFormat;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -23,6 +27,12 @@ import java.util.stream.Collectors;
 @CrossOrigin(origins = {"*"},allowCredentials = "true")
 public class ProductController extends BaseController {
 
+    @Autowired
+    private RedisTemplate redisTemplate;
+    @Autowired
+    private PromoService promoService;
+    @Autowired
+    private CacheService cacheService;
     @Autowired
     private ProductService productService;
 
@@ -52,7 +62,26 @@ public class ProductController extends BaseController {
     @RequestMapping(value = "/get",method = {RequestMethod.GET})
     @ResponseBody
     public ReturnModel getProduct(@RequestParam(name = "id")Integer id){
-        ProductModel productModel = productService.getProductById(id);
+        ProductModel productModel = null;
+
+        //先取本地缓存
+        productModel = (ProductModel) cacheService.getFromCommonCache("product_"+id);
+
+        if(productModel == null){
+            //根据商品的id到redis内获取
+            productModel = (ProductModel) redisTemplate.opsForValue().get("product_"+id);
+
+            //若redis内不存在对应的itemModel,则访问下游service
+            if(productModel == null){
+                productModel = productService.getProductById(id);
+                //设置itemModel到redis内
+                redisTemplate.opsForValue().set("product_"+id,productModel);
+                redisTemplate.expire("product_"+id,10, TimeUnit.MINUTES);
+            }
+            //填充本地缓存
+            cacheService.setCommonCache("product_"+id,productModel);
+        }
+
 
         ProductVO productVO = convertVOFromModel(productModel);
 
@@ -92,5 +121,12 @@ public class ProductController extends BaseController {
             productVO.setPromoStatus(0);
         }
         return productVO;
+    }
+
+    @RequestMapping(value = "/publishpromo",method = {RequestMethod.GET})
+    @ResponseBody
+    public ReturnModel publishPromo(@RequestParam(name = "id")Integer id){
+        promoService.publishPromo(id);
+        return ReturnModel.create(null);
     }
 }

@@ -2,11 +2,14 @@ package high.concurrent.shop.service.impl;
 
 import high.concurrent.shop.dao.PromoMapper;
 import high.concurrent.shop.entity.Promo;
+import high.concurrent.shop.service.ProductService;
 import high.concurrent.shop.service.PromoService;
+import high.concurrent.shop.service.model.ProductModel;
 import high.concurrent.shop.service.model.PromoModel;
 import org.joda.time.DateTime;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -19,7 +22,11 @@ public class PromoServiceImpl implements PromoService {
 
     @Autowired
     private PromoMapper promoMapper;
+    @Autowired
+    private ProductService productService;
 
+    @Autowired
+    private RedisTemplate redisTemplate;
     @Override
     public PromoModel getPromoByProductId(Integer productId) {
         //获取对应商品的秒杀活动信息
@@ -41,6 +48,24 @@ public class PromoServiceImpl implements PromoService {
         }
         return promoModel;
     }
+
+    @Override
+    public void publishPromo(Integer promoId) {
+        //活动id获取获得
+        Promo promo=promoMapper.selectByPrimaryKey(promoId);
+
+        if(promo.getProductId()==null||promo.getProductId().intValue()==0){
+            return;
+        }
+        ProductModel productModel=productService.getProductById(promo.getProductId());
+
+        //将库存同步到redis内
+        redisTemplate.opsForValue().set("promo_product_stock_"+productModel.getId(),productModel.getStock());
+
+
+
+    }
+
     private PromoModel convertFromDataObject(Promo promo){
         if(promo == null){
             return null;
