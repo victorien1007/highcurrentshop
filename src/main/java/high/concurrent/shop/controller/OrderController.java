@@ -5,6 +5,7 @@ import high.concurrent.shop.error.EmBusinessError;
 import high.concurrent.shop.mq.MqProducer;
 import high.concurrent.shop.response.ReturnModel;
 import high.concurrent.shop.service.OrderService;
+import high.concurrent.shop.service.StockLogService;
 import high.concurrent.shop.service.model.OrderModel;
 import high.concurrent.shop.service.model.UserModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +25,8 @@ public class OrderController extends BaseController {
     private OrderService orderService;
     @Autowired
     private MqProducer mqProducer;
-
+    @Autowired
+    StockLogService stockLogService;
     @Autowired
     private HttpServletRequest httpServletRequest;
 
@@ -43,8 +45,11 @@ public class OrderController extends BaseController {
         //获取用户的登陆信息
         UserModel userModel = (UserModel)httpServletRequest.getSession().getAttribute("LOGIN_USER");
 
+
+        //初始化订单
+        String stockLog=stockLogService.initStockLog(productId,amount);
         //OrderModel orderModel = orderService.createOrder(userModel.getId(),productId,promoId,amount);
-        if(!mqProducer.transactionAsyncReduceStock(userModel.getId(),productId,promoId,amount)){
+        if(!mqProducer.transactionAsyncReduceStock(userModel.getId(),productId,promoId,amount,stockLog)){
             throw new BusinessException(EmBusinessError.UNKNOWN_ERROR,"下单失败");
         }
         return ReturnModel.create(null);

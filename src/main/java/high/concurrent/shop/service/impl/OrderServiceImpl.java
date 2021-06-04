@@ -2,8 +2,10 @@ package high.concurrent.shop.service.impl;
 
 import high.concurrent.shop.dao.OrderMapper;
 import high.concurrent.shop.dao.SequenceMapper;
+import high.concurrent.shop.dao.StockLogMapper;
 import high.concurrent.shop.entity.Order;
 import high.concurrent.shop.entity.Sequence;
+import high.concurrent.shop.entity.StockLog;
 import high.concurrent.shop.error.BusinessException;
 import high.concurrent.shop.error.EmBusinessError;
 import high.concurrent.shop.mq.MqProducer;
@@ -45,11 +47,14 @@ public class OrderServiceImpl implements OrderService {
     private OrderMapper orderMapper;
 
     @Autowired
+    private StockLogMapper stockLogMapper;
+
+    @Autowired
     private MqProducer mqProducer;
 
     @Override
     @Transactional
-    public OrderModel createOrder(Integer userId, Integer productId, Integer promoId, Integer amount) throws BusinessException {
+    public OrderModel createOrder(Integer userId, Integer productId, Integer promoId, Integer amount,String stockLogId) throws BusinessException {
         //1.校验下单状态,下单的商品是否存在，用户是否合法，购买数量是否正确
         //ProductModel productModel = productService.getProductById(productId);
         ProductModel productModel = productService.getProductByIdInCache(productId);
@@ -103,7 +108,11 @@ public class OrderServiceImpl implements OrderService {
 
         //加上商品的销量
         productService.increaseSales(productId,amount);
-
+        //设置流水状态为成功
+        StockLog stockLog=stockLogMapper.selectByPrimaryKey(stockLogId);
+        if(stockLog==null){
+            throw new BusinessException(EmBusinessError.UNKNOWN_ERROR);
+        }
 /*        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
             @Override
             public void afterCommit() {

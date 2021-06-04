@@ -51,8 +51,9 @@ private OrderService orderService;
             Integer userId=(Integer)((Map)obj).get("userId");
             Integer promoId=(Integer)((Map)obj).get("promoId");
             Integer amount=(Integer)((Map)obj).get("amount");
+            String stockLogId=(String)((Map)obj).get("stockLogId");
             try {
-                orderService.createOrder(userId,productId,promoId,amount);
+                orderService.createOrder(userId,productId,promoId,amount,stockLogId);
             }catch(BusinessException e){
                 e.printStackTrace();
                 return LocalTransactionState.ROLLBACK_MESSAGE;
@@ -75,15 +76,17 @@ private OrderService orderService;
 }
 
     //事务型同步库存扣减消息
-    public boolean transactionAsyncReduceStock(Integer userId, Integer productId,Integer promoId,  Integer amount){
+    public boolean transactionAsyncReduceStock(Integer userId, Integer productId,Integer promoId,  Integer amount,String stockLogId){
         Map<String,Object> bodyMap=new HashMap<>();
         bodyMap.put("productId",productId);
         bodyMap.put("amount",amount);
+        bodyMap.put("stockLogId",stockLogId);
         Map<String,Object> argsMap=new HashMap<>();
         argsMap.put("productId",productId);
         argsMap.put("amount",amount);
         argsMap.put("userId",userId);
         argsMap.put("promoId",promoId);
+        bodyMap.put("stockLogId",stockLogId);
         Message message=new Message(topicName,"increase", JSON.toJSON(bodyMap).toString().getBytes(Charset.forName("UTF-8")));
 
         TransactionSendResult transactionSendResult=null;
